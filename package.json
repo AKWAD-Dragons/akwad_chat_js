@@ -1,0 +1,34 @@
+{
+  "name": "@akwad/akwad_chat",
+  "version": "1.0.0",
+  "description": "A Chatting sdk for quick and powerful chatting integration",
+  "main": "index.js",
+  "dependencies": {
+    "@types/node": "^12.12.62",
+    "class-transformer": "^0.3.1",
+    "firebase": "^7.21.1",
+    "reflect-metadata": "^0.1.13",
+    "rxjs": "^6.6.3",
+    "typescript": "~3.7.2"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AKWAD-Dragons/akwad_chat_js.git"
+  },
+  "keywords": [
+    "akwad",
+    "chat",
+    "akwadchat",
+    "akwad_chat",
+    "AkwadChat"
+  ],
+  "author": "AKWAD",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/AKWAD-Dragons/akwad_chat_js/issues"
+  },
+  "homepage": "https://github.com/AKWAD-Dragons/akwad_chat_js#readme"
+}
