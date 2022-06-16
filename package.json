@@ -2,8 +2,8 @@
   "name": "@akwad/akwad_chat",
   "version": "1.0.1",
   "description": "A Chatting sdk for quick and powerful chatting integration",
-  "main": "/lib/index.js",
-  "types": "/lib/index.d.ts",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "dependencies": {
     "@types/node": "^12.12.62",
     "class-transformer": "^0.3.1",
