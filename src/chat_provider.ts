@@ -1,6 +1,6 @@
 import { FirebaseChatConfigs } from "./FirebaseChatConfigs";
 import { Lobby } from "./models/Lobby";
-import firebase from "firebase";
+import firebase  = require("firebase");
 
 export class ChatProvider {
   private _lobby: Lobby;

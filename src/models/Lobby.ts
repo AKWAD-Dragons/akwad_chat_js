@@ -1,5 +1,5 @@
-import firebase, { database } from "firebase";
-import { BehaviorSubject, Subscribable } from "rxjs";
+import firebase = require("firebase");
+import { BehaviorSubject, from, Subscribable } from "rxjs";
 import { FirebaseChatConfigs } from "../FirebaseChatConfigs";
 import { Participant } from "./Participant";
 import { Room } from "./Room";
@@ -27,14 +27,14 @@ export class Lobby {
           this._configs.getMyParticipantID() +
           "/rooms"
       )
-      .on("value", (snapshot) => {
+      .on("value", (snapshot: any) => {
         this.setRoomsFromSnapshot(snapshot);
         this._roomsSubject.next(this.rooms);
       });
     return this._roomsSubject;
   }
 
-  setRoomsFromSnapshot(snapshot: database.DataSnapshot): Room[] {
+  setRoomsFromSnapshot(snapshot: firebase.database.DataSnapshot): Room[] {
     if (snapshot.val() == null) return [];
     this.rooms = plainToClass(Room, Object.values(snapshot.val()));
     return this.rooms;
@@ -49,10 +49,10 @@ export class Lobby {
         .once("value")
     ).val;
     this._myParticipant = value;
-    this._myParticipant.id = this._configs.getMyParticipantID();
-
-    if (this._myParticipant == null)
+    if (this._myParticipant == null){
       throw "Participant of ID ${_configs.myParticipantID} doesn't exist or the configs are not right";
+    }
+    this._myParticipant.id = this._configs.getMyParticipantID();
   }
 
   async getAllRooms(): Promise<Room[] | undefined> {

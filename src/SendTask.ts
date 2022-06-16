@@ -1,4 +1,4 @@
-import firebase from "firebase";
+import firebase = require("firebase");
 import { BehaviorSubject, Observable, Subject } from "rxjs";
 import { ChatAttachment } from "./models/ChatAttachment";
 

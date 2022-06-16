@@ -1,6 +1,6 @@
 import { Participant } from "./Participant";
 import { Message } from "./Message";
-import firebase from "firebase";
+import firebase = require("firebase");
 import { FirebaseChatConfigs } from "../FirebaseChatConfigs";
 import { SendMessageTask, _SingleUploadTask } from "../SendTask";
 import { ChatAttachment } from "./ChatAttachment";
@@ -143,7 +143,7 @@ export class Room {
   }
 
   async setSeen(msg: Message, seen = true): Promise<void> {
-    if(!msg){
+    if (!msg) {
       return;
     }
     await this._dbr
