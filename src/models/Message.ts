@@ -1,5 +1,6 @@
 import { ChatAttachment } from "./ChatAttachment";
 
+//Message Data
 export class Message {
   id?: string;
   user_id?: string;
@@ -7,6 +8,7 @@ export class Message {
   time?: Date;
   attachments?: ChatAttachment[];
 
+  //TODO::allow message to be initialized by text and/or attachments only without having to add undefined in constructor
   constructor(
     id?: string,
     user_id?: string,

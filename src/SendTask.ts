@@ -31,6 +31,7 @@ export class _SingleUploadTask {
     this._controller.next(new TaskUpdateEvent(this._progress, this._total));
   }
 
+  //Starts single attachment upload using Firebase Storage
   start(): void {
     if (this.attachment == undefined || this._path == undefined) return;
     if (this.attachment.file == null) return;
@@ -63,6 +64,7 @@ export class _SingleUploadTask {
   }
 }
 
+//Manages Sending message and its attachments task
 export class SendMessageTask {
   private _taskMap: Map<String, _SingleUploadTask>;
   private _attachments: ChatAttachment[] = [];
@@ -94,6 +96,7 @@ export class SendMessageTask {
     return total;
   };
 
+  //takes a map of {"task_key":task}
   constructor(taskMap: Map<String, _SingleUploadTask>) {
     this._taskMap = taskMap;
     this._taskMap.forEach(
@@ -103,8 +106,13 @@ export class SendMessageTask {
         map: Map<String, _SingleUploadTask>
       ) => {
         if (value.attachment != null) {
+          //sums all attachment sizes to be used later for getting progress
           this._totalSize += value.total() ?? 0;
+          //used to check if all attachments tasks completed
           this._count++;
+
+          //listen to each task update/complete to update progress
+          //and call SendMessageTask onComplete Listeners and onProgress Listeners
           value.stream.subscribe((event) => {
             if (event instanceof TaskUpdateEvent) {
               this._totalDone.set(key, event);
@@ -125,6 +133,8 @@ export class SendMessageTask {
     );
   }
 
+  //called to start uploading attachments
+  //if you are going to add Listeners call this after adding them not before
   startAllTasks(): void {
     this._taskMap.forEach(
       (
@@ -137,12 +147,14 @@ export class SendMessageTask {
     );
   }
 
+  //add a callback for when all attachments are uploaded
   addOnCompleteListener(
     onCompleteCallBack: (f: Array<ChatAttachment>) => void
   ): void {
     this._onCompleteCallBacks.push(onCompleteCallBack);
   }
 
+  //add a callback for when any of the attachments progress updates
   addOnProgressListener(
     onProgressCallBack: (task: SendMessageTask) => void
   ): void {
@@ -157,6 +169,7 @@ export class SendMessageTask {
     this._onProgressCallBacks.forEach((callback) => callback(this));
   }
 
+  //gets a specific task by it's key to listen to it's states individually
   getTaskByKey(key: String): _SingleUploadTask | undefined {
     return this._taskMap.get(key);
   }
@@ -164,6 +177,7 @@ export class SendMessageTask {
 
 abstract class _TaskEvent {}
 
+//update event contains progress and total upload size
 export class TaskUpdateEvent extends _TaskEvent {
   private _total?: number;
   private _progress: number;
@@ -179,6 +193,7 @@ export class TaskUpdateEvent extends _TaskEvent {
   }
 }
 
+//complete event contains uploaded attachment url
 export class TaskCompletedEvent extends _TaskEvent {
   private _uploadedAttachment: ChatAttachment;
 

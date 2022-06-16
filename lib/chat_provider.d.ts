@@ -1,8 +1,11 @@
 import { Lobby } from "./models/Lobby";
 export declare class ChatProvider {
     private _lobby;
+    private _isInit;
     constructor();
-    getLobby(): Promise<Lobby>;
+    init(onTokenExpired: () => Promise<string>): Promise<void>;
+    deAuth(): void;
+    getLobby(): Lobby;
 }
 export declare class AttachmentTypes {
     static IMAGE: string;

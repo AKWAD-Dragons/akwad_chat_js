@@ -3,6 +3,8 @@ export interface ParticipantParams {
   name: string;
   permissions?: string[];
 }
+
+//Chat Participant data
 export class Participant {
   id?: string;
   name: string;
