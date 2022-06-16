@@ -1,6 +1,6 @@
 {
   "name": "@akwad/akwad_chat",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A Chatting sdk for quick and powerful chatting integration",
   "main": "index.js",
   "dependencies": {
