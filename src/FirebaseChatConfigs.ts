@@ -1,3 +1,4 @@
+//Firebase Configs for ChatProvider
 export class FirebaseChatConfigs {
   private static instance: FirebaseChatConfigs;
 
@@ -34,6 +35,8 @@ export class FirebaseChatConfigs {
     this.checkNull(this._myParticipantID, "myParticipantID");
     return this._myParticipantID;
   }
+
+  //User ID in Realtime DB
   setMyParticipantID(id: string): void {
     this._myParticipantID = id;
   }
@@ -43,10 +46,23 @@ export class FirebaseChatConfigs {
     return this._myParticipantToken;
   }
 
+
+  //Example Scheme
+  //firebase-project-root:
+  //  Rooms:
+  //    -Mw91AWdawdaWDew3
+  //  Users:
+  //    -Mw31sfWdafa2Dewa
+  //roomLink: link to Rooms node in realtime database
+  //  for the example scheme that would be roomLink:"Rooms"
+  //userLink: link to Users node in realtime database
+  //  for the example scheme that would be roomLink:"Users"
+  //myParticipantToken: a custom token that expires after one hour
+  //  this token could be fetched through the cloud function createUser and refreshToken
   init(params: {
-    roomsLink: string;
-    usersLink: string;
-    myParticipantToken: string;
+    roomsLink?: string;
+    usersLink?: string;
+    myParticipantToken?: string;
   }): void {
     this._isInit = true;
     this._roomsLink = params.roomsLink ?? this._roomsLink;
@@ -55,7 +71,7 @@ export class FirebaseChatConfigs {
       params.myParticipantToken ?? this._myParticipantToken;
   }
 
-  checkNull(variable: any, name: string): void {
+ checkNull(variable: any, name: string): void {
     if (variable == null) {
       throw `${name} is not set`;
     }

@@ -1,3 +1,4 @@
+//Chat Attachment contains uploaded attachment details
 export class ChatAttachment {
   key: string;
   file?: File;

@@ -1,9 +1,21 @@
+//TODO::Copy variables, functions, classes privacy(private or public) from the Dart SDK
 import { FirebaseChatConfigs } from "./FirebaseChatConfigs";
 import { Lobby } from "./models/Lobby";
-import firebase  = require("firebase");
+import firebase = require("firebase");
 
+/*
+  ***Starting Point***
+  1-Before you call ChatProvider() you will first need to call
+    *FirebaseChatConfigs.instance.init()
+
+  2-call chatProvider.init(onTokenExpired)
+
+  3-call chatProvider.getLobby() to start using the current user lobby
+
+*/
 export class ChatProvider {
   private _lobby: Lobby;
+  private _isInit = false;
 
   constructor() {
     if (!FirebaseChatConfigs.getInstance().isInit()) {
@@ -12,24 +24,59 @@ export class ChatProvider {
     this._lobby = new Lobby();
   }
 
-  async getLobby(): Promise<Lobby> {
+    /*
+   *this function must be called to initialize the Chat User and authenticate him
+
+   *Params:
+      onTokenExpired()=>String: a callback function that gets called
+        if the token passed is expired
+        could be used to refresh token passed to FirebaseChatConfigs.init
+   */
+  async init(onTokenExpired: () => Promise<string>): Promise<void> {
     let user = firebase.auth().currentUser;
     if (user) {
       FirebaseChatConfigs.getInstance().setMyParticipantID(user.uid);
-      return this._lobby;
+      this._isInit = true;
+      return;
     }
-    console.log(
-      FirebaseChatConfigs.getInstance().getMyParticipantToken() || ""
-    );
     let creds = await firebase
       .auth()
       .signInWithCustomToken(
         FirebaseChatConfigs.getInstance().getMyParticipantToken() || ""
-      );
+      )
+      .catch(async (ex) => {
+        console.log(
+          "Token is invalid or expired\nretrying with onTokenExpired"
+        );
+        FirebaseChatConfigs.getInstance().init({
+          myParticipantToken: await onTokenExpired(),
+        });
+        await firebase
+          .auth()
+          .signInWithCustomToken(
+            FirebaseChatConfigs.getInstance().getMyParticipantToken() ?? ""
+          )
+          .then((value) => (creds = value))
+          .catch((e) => {
+            throw e;
+          });
+        return;
+      });
 
-    console.log(creds.user);
     if (creds && creds.user) {
       FirebaseChatConfigs.getInstance().setMyParticipantID(creds.user.uid);
+    }
+    this._isInit = true;
+  }
+
+  deAuth() {
+    firebase.auth().signOut();
+  }
+
+  //Returns lobby if it's safe to use lobby
+  getLobby(): Lobby {
+    if (!this._isInit) {
+      throw "must call init";
     }
     return this._lobby;
   }

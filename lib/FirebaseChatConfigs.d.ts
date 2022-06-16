@@ -14,9 +14,9 @@ export declare class FirebaseChatConfigs {
     setMyParticipantID(id: string): void;
     getMyParticipantToken(): string | undefined;
     init(params: {
-        roomsLink: string;
-        usersLink: string;
-        myParticipantToken: string;
+        roomsLink?: string;
+        usersLink?: string;
+        myParticipantToken?: string;
     }): void;
     checkNull(variable: any, name: string): void;
 }

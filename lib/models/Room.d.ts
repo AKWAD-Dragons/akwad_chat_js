@@ -22,7 +22,8 @@ export declare class Room {
     getMessagesLink: () => string;
     getRoomListener(): BehaviorSubject<Room | undefined>;
     getRoom(): Promise<Room>;
-    setRoomFromSnapshot(snapshot: firebase.database.DataSnapshot): Room;
+    setThisFromRoom(room: Room): void;
+    static getRoomFromSnapshot(roomObj: any): Room;
     send(msg: Message): SendMessageTask;
     _createUploadAttachmentsTasks(attachments: ChatAttachment[]): Map<String, _SingleUploadTask>;
     setSeen(msg: Message, seen?: boolean): Promise<void>;
