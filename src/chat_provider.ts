@@ -17,7 +17,8 @@ export class ChatProvider {
   private _lobby: Lobby;
   private _isInit = false;
 
-  constructor() {
+  constructor(FirebaseConfigs: Object) {
+    firebase.initializeApp(FirebaseConfigs);
     if (!FirebaseChatConfigs.getInstance().isInit()) {
       throw "call FirebaseChatConfigs.instance.init() first";
     }
