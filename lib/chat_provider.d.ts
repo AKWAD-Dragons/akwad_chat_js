@@ -2,7 +2,7 @@ import { Lobby } from "./models/Lobby";
 export declare class ChatProvider {
     private _lobby;
     private _isInit;
-    constructor();
+    constructor(FirebaseConfigs: Object);
     init(onTokenExpired: () => Promise<string>): Promise<void>;
     deAuth(): void;
     getLobby(): Lobby;

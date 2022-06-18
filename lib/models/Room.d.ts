@@ -26,5 +26,6 @@ export declare class Room {
     static getRoomFromSnapshot(roomObj: any): Room;
     send(msg: Message): SendMessageTask;
     _createUploadAttachmentsTasks(attachments: ChatAttachment[]): Map<String, _SingleUploadTask>;
+    isLastMessageRead: () => boolean;
     setSeen(msg: Message, seen?: boolean): Promise<void>;
 }
