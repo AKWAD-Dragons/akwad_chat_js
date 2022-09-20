@@ -15,10 +15,15 @@ export class Room {
 	messages?: Message[];
 	meta_data?: Map<String, any>;
 	last_message?: Message;
+	last_message_index?: number;
 
 	_dbr: firebase.database.Reference = firebase.database().ref();
 
 	_configs: FirebaseChatConfigs = FirebaseChatConfigs.getInstance();
+
+ 	userRoomDate?: Map<String, any>;
+	_ignoredFirstMessagesOnValue:boolean = false;
+
 
 	_roomSubject: BehaviorSubject<Room | undefined> = new BehaviorSubject<
 		Room | undefined
@@ -71,7 +76,7 @@ export class Room {
 	getRoomLink = () => this._configs.getRoomsLink() + `/${this.id}`;
 
 	//current room messages link in RTDB
-	getMessagesLink = () => this._configs.getRoomsLink() + `/${this.id}/messages`;
+	getMessagesLink = () => this._configs.getMessagesLink + "/$id";
 
 	//listen to Room updates
 	getRoomListener(): BehaviorSubject<Room | undefined> {
@@ -189,7 +194,7 @@ export class Room {
 		if (!lastMessage) {
 			return false;
 		}
-		return participant.last_seen_message === lastMessage.id;
+		return participant.last_seen_message === lastMessage.id || lastMessage.user_id === this._configs.getMyParticipantID();
 	};
 
 	//TODO::[OPTIMIZATION]check if room last seen is the same as the package and ignore sending seen again
