@@ -3,6 +3,7 @@ export class FirebaseChatConfigs {
   private static instance: FirebaseChatConfigs;
 
   private _roomsLink?: string;
+  private _messagesLink?: string;
   private _usersLink?: string;
   private _myParticipantID?: string;
   private _myParticipantToken?: string;
@@ -24,6 +25,11 @@ export class FirebaseChatConfigs {
   getRoomsLink(): string | undefined {
     this.checkNull(this._roomsLink, "roomLink");
     return this._roomsLink;
+  }
+
+  getMessagesLink(): string | undefined {
+    this.checkNull(this._messagesLink, "messagesLink");
+    return this._messagesLink;
   }
 
   getUsersLink(): string | undefined {
@@ -53,22 +59,34 @@ export class FirebaseChatConfigs {
   //    -Mw91AWdawdaWDew3
   //  Users:
   //    -Mw31sfWdafa2Dewa
-  //roomLink: link to Rooms node in realtime database
+  //  Messages:
+  //    -RoomKey/
+  //      -Message1...
+  //roomsLink: link to Rooms node in realtime database
   //  for the example scheme that would be roomLink:"Rooms"
-  //userLink: link to Users node in realtime database
+  //messagesLink: link to Messages node in realtime database
+  //  for the example scheme that would be messageLink:"Messages"
+  //usersLink: link to Users node in realtime database
   //  for the example scheme that would be roomLink:"Users"
   //myParticipantToken: a custom token that expires after one hour
   //  this token could be fetched through the cloud function createUser and refreshToken
-  init(params: {
+  init({
+    roomsLink='Rooms',
+    messagesLink='Messages',
+    usersLink='Users',
+    myParticipantToken
+  } : {
     roomsLink?: string;
+    messagesLink?: string;
     usersLink?: string;
     myParticipantToken?: string;
   }): void {
     this._isInit = true;
-    this._roomsLink = params.roomsLink ?? this._roomsLink;
-    this._usersLink = params.usersLink ?? this._usersLink;
+    this._roomsLink = roomsLink ?? this._roomsLink;
+    this._messagesLink = messagesLink ?? this._messagesLink;
+    this._usersLink = usersLink ?? this._usersLink;
     this._myParticipantToken =
-      params.myParticipantToken ?? this._myParticipantToken;
+      myParticipantToken ?? this._myParticipantToken;
   }
 
  checkNull(variable: any, name: string): void {
