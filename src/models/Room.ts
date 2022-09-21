@@ -1,10 +1,11 @@
 import { Participant } from "./Participant";
 import { Message } from "./Message";
 import firebase = require("firebase");
+import { database } from "firebase";
 import { FirebaseChatConfigs } from "../FirebaseChatConfigs";
 import { SendMessageTask, _SingleUploadTask } from "../SendTask";
 import { ChatAttachment } from "./ChatAttachment";
-import { BehaviorSubject } from "rxjs";
+import { BehaviorSubject, Subscribable } from "rxjs";
 import { plainToClass } from "class-transformer";
 
 export class Room {
@@ -21,12 +22,16 @@ export class Room {
 
 	_configs: FirebaseChatConfigs = FirebaseChatConfigs.getInstance();
 
- 	userRoomDate?: Map<String, any>;
+ 	userRoomData?: Map<String, any>;
 	_ignoredFirstMessagesOnValue:boolean = false;
 
 
 	_roomSubject: BehaviorSubject<Room | undefined> = new BehaviorSubject<
 		Room | undefined
+	>(undefined);
+	
+	_messagesSubject: BehaviorSubject<Message | undefined> = new BehaviorSubject<
+		Message | undefined
 	>(undefined);
 
 	constructor(
@@ -78,136 +83,239 @@ export class Room {
 	//current room messages link in RTDB
 	getMessagesLink = () => this._configs.getMessagesLink + "/$id";
 
-	//listen to Room updates
-	getRoomListener(): BehaviorSubject<Room | undefined> {
-		this._dbr.child(this.getRoomLink()).on("value", (snapshot) => {
-			this.setThisFromRoom(Room.getRoomFromSnapshot(snapshot.val()));
-			this._roomSubject.next(this);
+	async getRoomListener() {
+    await this._setUserRoomData();
+		this._dbr.child(this.getRoomLink()).off();
+    this._dbr.child(this.getRoomLink()).on('value', (snapshot: database.DataSnapshot)=>{
+			let room = this.parseRoomFromSnapshotValue(snapshot?.val() ?? null);
+      this._setThisFromRoom(room);
 		});
 		return this._roomSubject;
-	}
+  }
 
-	//get room data without listening
-	async getRoom(): Promise<Room> {
-		let snapshot = await this._dbr.child(this.getRoomLink()).once("value");
-		this.setThisFromRoom(Room.getRoomFromSnapshot(snapshot.val()));
-		return this;
-	}
+  //get room data without listening
+	async getRoom():Promise<Room> {
+    let snapshot: database.DataSnapshot  = await this._dbr.child(this.getRoomLink()).once('value');
+    await this._setUserRoomData();
+    let room  = this.parseRoomFromSnapshotValue(snapshot?.val() ?? null);
+    this._setThisFromRoom(room);
+    return this;
+  }
 
-	//copies room object data into current room
-	setThisFromRoom(room: Room) {
-		this.meta_data = room.meta_data;
-		this.participants = room.participants;
-		this.image = room.image;
-		this.name = room.name;
-		this.messages = room.messages;
-		this.last_message = undefined;
-	}
+  //get unread messages count
+  getUnreadMessagesCount () : number {
+    let myParticipant = this.participants?.find(
+        (p) => p.id == FirebaseChatConfigs.getInstance().getMyParticipantID());
+    if (myParticipant == null) {
+      return 0;
+    }
+    return (this.last_message_index ?? 0) - (myParticipant.last_seen_message_index ?? 0);
+  }
 
-	//parse room using snapshot value
-	public static getRoomFromSnapshot(roomObj: any): Room {
-		let room = plainToClass(Room, roomObj) as unknown as Room;
-		let msgs: Message[] = new Array<Message>();
-		let participants: Participant[] = new Array<Participant>();
-		if (roomObj["messages"] != null) {
-			let messageObj = roomObj["messages"];
-			for (let property in messageObj) {
-				let msg = messageObj[property] as Message;
-				msg.id = property;
-				msgs.push(msg);
-			}
-		}
-		if (roomObj["participants"] != null) {
-			let participantsObj = roomObj["participants"];
-			for (let property in participantsObj) {
-				let participant = participantsObj[property] as Participant;
-				participant.id = property;
-				participants.push(participant);
-			}
-		}
-		msgs = plainToClass(Message, msgs);
-		room.messages = msgs;
-		room.participants = participants;
-		return room;
-	}
+	async _setUserRoomData(force:boolean = false) : Promise<void> {
+    if (this.userRoomData != null && !force) return;
+     let snapshot = await this._dbr
+        .child(this._configs.getUsersLink() + "/" + this._configs.getMyParticipantID() + "/rooms")
+        .child(this.id??'')
+        .child('/data')
+        .once('value');
+    this.userRoomData = snapshot?.val();
+  }
 
-	//Sends a message that may contains text and/or attachments
-	//Returns a SendMessageTask that could be used to track attachments upload progress
-	send(msg: Message): SendMessageTask {
-		if (msg.attachments?.length ?? 0 > 0) {
-			if (msg.attachments != undefined) {
-				let sendMessageTask = new SendMessageTask(
-					this._createUploadAttachmentsTasks(msg.attachments)
-				);
-				sendMessageTask.addOnCompleteListener(
-					(uploadedAttachments: ChatAttachment[]) => {
-						console.log(uploadedAttachments);
-						msg.attachments = uploadedAttachments;
-						this._dbr
-							.child(`buffer/${this.id}`)
-							.push()
-							.set(JSON.parse(JSON.stringify(msg)));
-					}
-				);
-				sendMessageTask.startAllTasks();
-				return sendMessageTask;
-			}
-		}
+  //copies room object data into current room
+  _setThisFromRoom(room:Room) {
+    this.meta_data = room.meta_data;
+    this.participants = room.participants;
+    this.image = room.image;
+    this.name = room.name;
+    this.last_message = room.last_message;
+    this.last_message_index = room.last_message_index;
+  }
 
-		this._dbr
-			.child(`buffer/${this.id}`)
-			.push()
-			.set(JSON.parse(JSON.stringify(msg)));
-		let x = new Map<String, _SingleUploadTask>();
-		x.set("send_task", new _SingleUploadTask(undefined, undefined));
-		return new SendMessageTask(x);
-	}
+   async getMessages() : Promise<Message[]> {
+    await this._setUserRoomData();
+    let snapshot = await this._dbr.child(this.getMessagesLink()).once('value');
+    let messages = this._parseMessagesFromSnapshotValue(snapshot.value);
+    return messages;
+  }
 
-	//assign each attachment to a SingleUploadTask
-	//returns a map of {attachment_key:_SingleUploadTask}
-	_createUploadAttachmentsTasks(
-		attachments: ChatAttachment[]
-	): Map<String, _SingleUploadTask> {
-		let uploadTasks = new Map<String, _SingleUploadTask>();
-		attachments.forEach((attachment: ChatAttachment) => {
-			let path = `${this.id}/${Date.now()}`;
-			let singleTask = new _SingleUploadTask(attachment, path);
-
-			//gives current timestamp as a key if no key passed to attachment
-			uploadTasks.set(attachment.key ?? Date.now(), singleTask);
+  //get messages listener
+  async getMessagesListener(): Promise<Subscribable<Message | undefined>> {
+    await this._setUserRoomData();
+		this._dbr.child(this.getMessagesLink()).on('value',(snapshot: database.DataSnapshot)=>{
+			if (!this._ignoredFirstMessagesOnValue) {
+        this._ignoredFirstMessagesOnValue = true;
+        continue;
+      }
+      let messages =
+          this._parseMessagesFromSnapshotValue(snapshot?.value ?? null);
+      this.last_message = messages.last;
 		});
-		return uploadTasks;
-	}
+		return this._messagesSubject;
+  }
 
-	isLastMessageRead = (): boolean => {
-		//get participant where participant id is this._configs.getMyParticipantID()
-		let participant: Participant | undefined = this.participants?.find(
-			(participant) => participant.id === this._configs.getMyParticipantID()
-		);
-		if (!participant) {
-			return false;
-		}
+  //TODO::make Lobby use this to parse each single room
+  //parse room using snapshot value
+  Room parseRoomFromSnapshotValue(dynamic snapshotValue) {
+    if (snapshotValue == null) return null;
+    LinkedHashMap<String, dynamic> roomJson =
+        LinkedHashMap<String, dynamic>.from(snapshotValue);
+    if (roomJson.containsKey("meta_data")) {
+      roomJson['meta_data'] =
+          LinkedHashMap<String, dynamic>.from(roomJson["meta_data"]);
+    }
+    if (roomJson.containsKey("participants")) {
+      roomJson['participants'] = roomJson["participants"].keys.map((key) {
+        LinkedHashMap<String, dynamic> map =
+            LinkedHashMap<String, dynamic>.from(roomJson["participants"][key]);
+        map["id"] = key;
+        return map;
+      }).toList();
+    }
+    if (roomJson.containsKey("last_message")) {
+      var messageMap =
+          LinkedHashMap<String, dynamic>.from(roomJson["last_message"]);
+      if (messageMap.containsKey("attachments")) {
+        messageMap['attachments'] = _buildMessageAttachmentJson(messageMap);
+      }
+      roomJson["last_message"] = messageMap;
+    }
+    Room room = Room.fromJson(roomJson);
+    return room;
+  }
 
-		//get last message
-		let lastMessage: Message | undefined =
-			this.messages![this.messages!.length - 1];
-		if (!lastMessage) {
-			return false;
-		}
-		return participant.last_seen_message === lastMessage.id || lastMessage.user_id === this._configs.getMyParticipantID();
-	};
+  List<Message> _parseMessagesFromSnapshotValue(dynamic snapShotValue) {
+    if (snapShotValue == null) {
+      return [];
+    }
+    String deletedTo;
+    if (userRoomData.containsKey("deleted_to")) {
+      deletedTo = userRoomData["deleted_to"];
+    }
+    List<Message> messageList = [];
+    for (String key in snapShotValue.keys) {
+      if (deletedTo != null && key.compareTo(deletedTo) <= 0) {
+        continue;
+      }
+      if (snapShotValue[key].containsKey("attachments")) {
+        snapShotValue[key]['attachments'] =
+            _buildMessageAttachmentJson(snapShotValue[key]);
+      }
+      snapShotValue[key]['id'] = key;
+      Message message = _parseMessageFromSnapshotValue(snapShotValue[key]);
+      messageList.add(message);
+    }
+    //sort messages by id
+    messageList.sort((a, b) => a.id.compareTo(b.id));
+    return messageList;
+  }
 
-	//TODO::[OPTIMIZATION]check if room last seen is the same as the package and ignore sending seen again
-	//sets message as seen
-	async setSeen(msg: Message, seen = true): Promise<void> {
-		if (!msg) {
-			return;
-		}
-		await this._dbr
-			.child(
-				this.getRoomLink() +
-					`/participants/${this._configs.getMyParticipantID()}`
-			)
-			.update({ last_seen_message: msg.id });
-	}
+  Message _parseMessageFromSnapshotValue(dynamic snapShotValue) {
+    if (snapShotValue == null) return null;
+    if (snapShotValue.containsKey("attachments")) {
+      snapShotValue['attachments'] = _buildMessageAttachmentJson(snapShotValue);
+    }
+    Message message =
+        Message.fromJson(LinkedHashMap<String, dynamic>.from(snapShotValue));
+    return message;
+  }
+
+  List<LinkedHashMap<String, dynamic>> _buildMessageAttachmentJson(
+      dynamic messageMap) {
+    return List<LinkedHashMap<String, dynamic>>.from(messageMap["attachments"]
+        .map((value) => LinkedHashMap<String, dynamic>.from(value))
+        .toList());
+  }
+
+  //TODO::Allow user to mute a selected room
+  Stream<List<Message>> mute() {}
+
+  //Sends a message that may contains text and/or attachments
+  //Returns a SendMessageTask that could be used to track attachments upload progress
+  SendMessageTask send(Message msg) {
+    if (msg.attachments?.isNotEmpty ?? false) {
+      SendMessageTask sendMessageTask =
+          SendMessageTask._(_createUploadAttachmentsTasks(msg.attachments));
+      sendMessageTask
+          .addOnCompleteListener((List<ChatAttachment> uploadedAttachments) {
+        msg.attachments = uploadedAttachments;
+        _dbr.child("buffer/$id").push().set(msg.toJson());
+      });
+      sendMessageTask.startAllTasks();
+      return sendMessageTask;
+    }
+    _dbr.child("buffer/$id").push().set(msg.toJson());
+    return SendMessageTask._({"send_task": _SingleUploadTask._(null, null)});
+  }
+  //assign each attachment to a SingleUploadTask
+  //returns a map of {attachment_key:_SingleUploadTask}
+  Map<String, _SingleUploadTask> _createUploadAttachmentsTasks(
+      List<ChatAttachment> attachments) {
+    Map<String, _SingleUploadTask> uploadTasks = {};
+    attachments.forEach((ChatAttachment attachment) {
+      String path = "$id/${DateTime.now().millisecondsSinceEpoch}";
+      _SingleUploadTask singleTask = _SingleUploadTask._(attachment, path);
+      //gives current timestamp as a key if no key passed to attachment
+      uploadTasks[attachment.key ?? DateTime.now().millisecondsSinceEpoch] =
+          singleTask;
+    });
+    return uploadTasks;
+  }
+
+  bool deleteAllMessages() {
+    if (lastMessage == null) return false;
+    _dbr
+        .child(_configs.usersLink + "/" + _configs.myParticipantID + "/rooms")
+        .child(id)
+        .child('/data')
+        .update({'deleted_to': lastMessage.id}).then(
+            (value) => _setUserRoomData(true));
+    return true;
+  }
+
+  //TODO::[OPTIMIZATION]check if room last seen is the same as the package and ignore sending seen again
+  //sets message as seen
+  Future<void> markAsRead() async {
+    if (lastMessage == null ||
+        lastMessage.id == null ||
+        lastMessageIndex == null) {
+      return;
+    }
+    await _dbr
+        .child(roomLink + "/participants/${_configs.myParticipantID}")
+        .update({
+      'last_seen_message': lastMessage.id,
+      'last_seen_message_index': lastMessageIndex
+    });
+    await _dbr
+        .child(
+            _configs.usersLink + "/${_configs.myParticipantID}/rooms/$id/data")
+        .update({
+      'last_seen_message': lastMessage.id,
+      'last_seen_message_index': lastMessageIndex
+    });
+    _setUserRoomData(true);
+  }
+
+  //gets room participants and check last seen message of each participant
+  //message is not seen if other participants lastSeenMessage is null or less than message id (using String compare)
+  // throws Exception if msg is null
+  bool isSeen(Message msg) {
+    if (msg == null) {
+      throw Exception("Message is null");
+    }
+    bool isSeen = true;
+    for (Participant participant in participants) {
+      if (participant.id == msg.user_id) continue;
+      if (participant.lastSeenMessage == null) {
+        isSeen = false;
+        break;
+      }
+      if ((participant.lastSeenMessage).compareTo(msg.id) < 0) {
+        isSeen = false;
+        break;
+      }
+    }
+    return isSeen;
+  }
 }
