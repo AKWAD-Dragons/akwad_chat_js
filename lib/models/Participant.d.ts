@@ -8,6 +8,7 @@ export declare class Participant {
     name: string;
     meta_data?: Object;
     last_seen_message?: string;
+    last_seen_message_index?: number;
     rooms?: string[];
     permissions?: string[];
     constructor(params: ParticipantParams);
