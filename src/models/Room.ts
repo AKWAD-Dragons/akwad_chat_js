@@ -1,10 +1,11 @@
 import { Participant } from "./Participant";
 import { Message } from "./Message";
 import firebase = require("firebase");
+import { database } from "firebase";
 import { FirebaseChatConfigs } from "../FirebaseChatConfigs";
 import { SendMessageTask, _SingleUploadTask } from "../SendTask";
 import { ChatAttachment } from "./ChatAttachment";
-import { BehaviorSubject } from "rxjs";
+import { BehaviorSubject, Subscribable } from "rxjs";
 import { plainToClass } from "class-transformer";
 
 export class Room {
@@ -15,13 +16,22 @@ export class Room {
 	messages?: Message[];
 	meta_data?: Map<String, any>;
 	last_message?: Message;
+	last_message_index?: number;
 
 	_dbr: firebase.database.Reference = firebase.database().ref();
 
 	_configs: FirebaseChatConfigs = FirebaseChatConfigs.getInstance();
 
+ 	userRoomData?: Map<String, any>;
+	_ignoredFirstMessagesOnValue:boolean = false;
+
+
 	_roomSubject: BehaviorSubject<Room | undefined> = new BehaviorSubject<
 		Room | undefined
+	>(undefined);
+	
+	_messagesSubject: BehaviorSubject<Message | undefined> = new BehaviorSubject<
+		Message | undefined
 	>(undefined);
 
 	constructor(
@@ -71,62 +81,118 @@ export class Room {
 	getRoomLink = () => this._configs.getRoomsLink() + `/${this.id}`;
 
 	//current room messages link in RTDB
-	getMessagesLink = () => this._configs.getRoomsLink() + `/${this.id}/messages`;
+	getMessagesLink = () => this._configs.getMessagesLink + "/$id";
 
-	//listen to Room updates
-	getRoomListener(): BehaviorSubject<Room | undefined> {
-		this._dbr.child(this.getRoomLink()).on("value", (snapshot) => {
-			this.setThisFromRoom(Room.getRoomFromSnapshot(snapshot.val()));
-			this._roomSubject.next(this);
+	async getRoomListener() {
+    await this._setUserRoomData();
+		this._dbr.child(this.getRoomLink()).off();
+    this._dbr.child(this.getRoomLink()).on('value', (snapshot: database.DataSnapshot)=>{
+			let room = this.parseRoomFromSnapshotValue(snapshot?.val() ?? null);
+      this._setThisFromRoom(room);
 		});
 		return this._roomSubject;
-	}
+  }
 
-	//get room data without listening
-	async getRoom(): Promise<Room> {
-		let snapshot = await this._dbr.child(this.getRoomLink()).once("value");
-		this.setThisFromRoom(Room.getRoomFromSnapshot(snapshot.val()));
-		return this;
-	}
+  //get room data without listening
+	async getRoom():Promise<Room> {
+    let snapshot: database.DataSnapshot  = await this._dbr.child(this.getRoomLink()).once('value');
+    await this._setUserRoomData();
+    let room  = this.parseRoomFromSnapshotValue(snapshot?.val() ?? null);
+    this._setThisFromRoom(room);
+    return this;
+  }
 
-	//copies room object data into current room
-	setThisFromRoom(room: Room) {
-		this.meta_data = room.meta_data;
-		this.participants = room.participants;
-		this.image = room.image;
-		this.name = room.name;
-		this.messages = room.messages;
-		this.last_message = undefined;
-	}
+  //get unread messages count
+  getUnreadMessagesCount () : number {
+    let myParticipant = this.participants?.find(
+        (p) => p.id == FirebaseChatConfigs.getInstance().getMyParticipantID());
+    if (myParticipant == null) {
+      return 0;
+    }
+    return (this.last_message_index ?? 0) - (myParticipant.last_seen_message_index ?? 0);
+  }
 
-	//parse room using snapshot value
-	public static getRoomFromSnapshot(roomObj: any): Room {
-		let room = plainToClass(Room, roomObj) as unknown as Room;
-		let msgs: Message[] = new Array<Message>();
-		let participants: Participant[] = new Array<Participant>();
-		if (roomObj["messages"] != null) {
-			let messageObj = roomObj["messages"];
-			for (let property in messageObj) {
-				let msg = messageObj[property] as Message;
-				msg.id = property;
-				msgs.push(msg);
-			}
-		}
-		if (roomObj["participants"] != null) {
-			let participantsObj = roomObj["participants"];
-			for (let property in participantsObj) {
-				let participant = participantsObj[property] as Participant;
-				participant.id = property;
-				participants.push(participant);
-			}
-		}
-		msgs = plainToClass(Message, msgs);
-		room.messages = msgs;
-		room.participants = participants;
-		return room;
-	}
+	async _setUserRoomData(force:boolean = false) : Promise<void> {
+    if (this.userRoomData != null && !force) return;
+     let snapshot = await this._dbr
+        .child(this._configs.getUsersLink() + "/" + this._configs.getMyParticipantID() + "/rooms")
+        .child(this.id??'')
+        .child('/data')
+        .once('value');
+    this.userRoomData = snapshot?.val();
+  }
 
-	//Sends a message that may contains text and/or attachments
+  //copies room object data into current room
+  _setThisFromRoom(room:Room|null) {
+    this.meta_data = room?.meta_data;
+    this.participants = room?.participants;
+    this.image = room?.image;
+    this.name = room?.name;
+    this.last_message = room?.last_message;
+    this.last_message_index = room?.last_message_index;
+  }
+
+   async getMessages() : Promise<Message[]> {
+    await this._setUserRoomData();
+    let snapshot = await this._dbr.child(this.getMessagesLink()).once('value');
+    let messages = this._parseMessagesFromSnapshotValue(snapshot.val());
+    return messages;
+  }
+
+  //get messages listener
+  async getMessagesListener(): Promise<Subscribable<Message | undefined>> {
+    await this._setUserRoomData();
+		this._dbr.child(this.getMessagesLink()).on('value',(snapshot: database.DataSnapshot)=>{
+			if (!this._ignoredFirstMessagesOnValue) {
+        this._ignoredFirstMessagesOnValue = true;
+        return;
+      }
+      let messages =
+          this._parseMessagesFromSnapshotValue(snapshot?.val() ?? null);
+      this.last_message = messages[messages.length-1];
+		});
+		return this._messagesSubject;
+  }
+
+  //TODO::make Lobby use this to parse each single room
+  //parse room using snapshot value
+  parseRoomFromSnapshotValue(roomJson: Map<String, any> | null): Room | null {
+    if (roomJson == null) return null;
+    if (roomJson.has("participants")) {
+      roomJson.get("participants")
+      roomJson.get("participants").keys.map((key:string) => {
+        let map: Map<String, any> = roomJson.get("participants").get(key);
+        map.set("id", key);
+        return map;
+      }).toList();
+    }
+    let room = roomJson as unknown as Room;
+    return room;
+  }
+
+  _parseMessagesFromSnapshotValue(snapShotValue: Map<String,any>): Message[] {
+    if (snapShotValue == null) {
+      return [];
+    }
+    let deletedTo;
+    if (this.userRoomData?.has("deleted_to")??false) {
+      deletedTo = this.userRoomData?.get("deleted_to");
+    }
+    let messageList = new Array<Message>();
+    for (let key of Array.from(snapShotValue.keys())) {
+      if (deletedTo != null && key < deletedTo) {
+        continue;
+      }
+      snapShotValue.get(key).set('id', key);
+      let message:Message = snapShotValue.get(key) as Message
+      messageList.push(message);
+    }
+    //sort messages by id
+    messageList.sort((a, b) => (a > b ? -1 : 1));
+    return messageList;
+  }
+
+  //Sends a message that may contains text and/or attachments
 	//Returns a SendMessageTask that could be used to track attachments upload progress
 	send(msg: Message): SendMessageTask {
 		if (msg.attachments?.length ?? 0 > 0) {
@@ -174,35 +240,63 @@ export class Room {
 		return uploadTasks;
 	}
 
-	isLastMessageRead = (): boolean => {
-		//get participant where participant id is this._configs.getMyParticipantID()
-		let participant: Participant | undefined = this.participants?.find(
-			(participant) => participant.id === this._configs.getMyParticipantID()
-		);
-		if (!participant) {
-			return false;
-		}
+  deleteAllMessages(): boolean {
+    if (this.last_message == null) return false;
+    this._dbr
+        .child(this._configs.getUsersLink() + "/" + this._configs.getMyParticipantID() + "/rooms")
+        .child(this.id??"")
+        .child('/data')
+        .update({'deleted_to': this.last_message.id}).then(
+            (value) => this._setUserRoomData(true));
+    return true;
+  }
 
-		//get last message
-		let lastMessage: Message | undefined =
-			this.messages![this.messages!.length - 1];
-		if (!lastMessage) {
-			return false;
-		}
-		return participant.last_seen_message === lastMessage.id;
-	};
+  //TODO::[OPTIMIZATION]check if room last seen is the same as the package and ignore sending seen again
+  //sets message as seen
+  async markAsRead(): Promise<void>  {
+    if (this.last_message == null ||
+        this.last_message.id == null ||
+        this.last_message_index == null) {
+      return;
+    }
+    await this._dbr
+        .child(this.getRoomLink() + "/participants/${_configs.myParticipantID}")
+        .update({
+      'last_seen_message': this.last_message.id,
+      'last_seen_message_index': this.last_message_index
+    });
+    await this._dbr
+        .child(
+            this._configs.getUsersLink() + "/${_configs.myParticipantID}/rooms/$id/data")
+        .update({
+      'last_seen_message': this.last_message.id,
+      'last_seen_message_index': this.last_message_index
+    });
+    this._setUserRoomData(true);
+  }
 
-	//TODO::[OPTIMIZATION]check if room last seen is the same as the package and ignore sending seen again
-	//sets message as seen
-	async setSeen(msg: Message, seen = true): Promise<void> {
-		if (!msg) {
-			return;
-		}
-		await this._dbr
-			.child(
-				this.getRoomLink() +
-					`/participants/${this._configs.getMyParticipantID()}`
-			)
-			.update({ last_seen_message: msg.id });
-	}
+  //gets room participants and check last seen message of each participant
+  //message is not seen if other participants lastSeenMessage is null or less than message id (using String compare)
+  // throws Exception if msg is null
+  isSeen(msg:Message):boolean {
+    if (msg == null) {
+      throw "Message is null";
+    }
+    let isSeen: boolean = true;
+    if(this.participants==null){
+      return false;
+    }
+    for (let participant of this.participants) {
+      if (participant?.id == msg.user_id) continue;
+      if (participant.last_seen_message == null) {
+        isSeen = false;
+        break;
+      }
+      if (participant.last_seen_message < (msg?.id??"")) {
+        isSeen = false;
+        break;
+      }
+    }
+    return isSeen;
+  }
 }

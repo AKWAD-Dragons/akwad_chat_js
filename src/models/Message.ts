@@ -7,6 +7,8 @@ export class Message {
   text?: string;
   time?: Date;
   attachments?: ChatAttachment[];
+  isDelivered?: boolean = false;
+  index?: number;
 
   //TODO::allow message to be initialized by text and/or attachments only without having to add undefined in constructor
   constructor(
@@ -14,7 +16,7 @@ export class Message {
     user_id?: string,
     text?: string,
     time?: Date,
-    attachments?: ChatAttachment[]
+    attachments?: ChatAttachment[],
   ) {
     this.id = id;
     this.user_id = user_id;
