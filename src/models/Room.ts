@@ -1,7 +1,6 @@
 import { Participant } from "./Participant";
 import { Message } from "./Message";
-import firebase = require("firebase");
-import { database } from "firebase";
+import firebase from "firebase";
 import { FirebaseChatConfigs } from "../FirebaseChatConfigs";
 import { SendMessageTask, _SingleUploadTask } from "../SendTask";
 import { ChatAttachment } from "./ChatAttachment";
@@ -81,12 +80,12 @@ export class Room {
 	getRoomLink = () => this._configs.getRoomsLink() + `/${this.id}`;
 
 	//current room messages link in RTDB
-	getMessagesLink = () => this._configs.getMessagesLink + "/$id";
+	getMessagesLink = () => this._configs.getMessagesLink() + `/${this.id}`;
 
 	async getRoomListener() {
     await this._setUserRoomData();
 		this._dbr.child(this.getRoomLink()).off();
-    this._dbr.child(this.getRoomLink()).on('value', (snapshot: database.DataSnapshot)=>{
+    this._dbr.child(this.getRoomLink()).on('value', (snapshot: firebase.database.DataSnapshot)=>{
 			let room = this.parseRoomFromSnapshotValue(snapshot?.val() ?? null);
       this._setThisFromRoom(room);
 		});
@@ -95,7 +94,7 @@ export class Room {
 
   //get room data without listening
 	async getRoom():Promise<Room> {
-    let snapshot: database.DataSnapshot  = await this._dbr.child(this.getRoomLink()).once('value');
+    let snapshot: firebase.database.DataSnapshot  = await this._dbr.child(this.getRoomLink()).once('value');
     await this._setUserRoomData();
     let room  = this.parseRoomFromSnapshotValue(snapshot?.val() ?? null);
     this._setThisFromRoom(room);
@@ -134,6 +133,7 @@ export class Room {
 
    async getMessages() : Promise<Message[]> {
     await this._setUserRoomData();
+    console.log(this.getMessagesLink());
     let snapshot = await this._dbr.child(this.getMessagesLink()).once('value');
     let messages = this._parseMessagesFromSnapshotValue(snapshot.val());
     return messages;
@@ -142,7 +142,7 @@ export class Room {
   //get messages listener
   async getMessagesListener(): Promise<Subscribable<Message | undefined>> {
     await this._setUserRoomData();
-		this._dbr.child(this.getMessagesLink()).on('value',(snapshot: database.DataSnapshot)=>{
+		this._dbr.child(this.getMessagesLink()).on('value',(snapshot: firebase.database.DataSnapshot)=>{
 			if (!this._ignoredFirstMessagesOnValue) {
         this._ignoredFirstMessagesOnValue = true;
         return;

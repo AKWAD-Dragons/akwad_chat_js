@@ -1,7 +1,7 @@
 //TODO::Copy variables, functions, classes privacy(private or public) from the Dart SDK
 import { FirebaseChatConfigs } from "./FirebaseChatConfigs";
 import { Lobby } from "./models/Lobby";
-import firebase = require("firebase");
+import firebase from "firebase";
 
 /*
   ***Starting Point***
@@ -18,7 +18,10 @@ export class ChatProvider {
 	private _isInit = false;
 
 	constructor(FirebaseConfigs: Object) {
-		firebase.initializeApp(FirebaseConfigs);
+		if (!firebase.apps.length) {
+			firebase.initializeApp(FirebaseConfigs);
+		}
+		
 		if (!FirebaseChatConfigs.getInstance().isInit()) {
 			throw "call FirebaseChatConfigs.instance.init() first";
 		}
@@ -34,6 +37,10 @@ export class ChatProvider {
         could be used to refresh token passed to FirebaseChatConfigs.init
    */
 	async init(onTokenExpired: () => Promise<string>): Promise<void> {
+		if(this._isInit) return;
+		
+		this._isInit = true;
+		
 		let user = firebase.auth().currentUser;
 		if (user) {
 			FirebaseChatConfigs.getInstance().setMyParticipantID(user.uid);
@@ -46,6 +53,7 @@ export class ChatProvider {
 				FirebaseChatConfigs.getInstance().getMyParticipantToken() || ""
 			)
 			.catch(async (ex) => {
+				this._isInit = false;
 				console.log(
 					"Token is invalid or expired\nretrying with onTokenExpired"
 				);
@@ -66,7 +74,7 @@ export class ChatProvider {
 				return;
 			});
 
-		this._isInit = true;
+		
 	}
 
 	deAuth() {

@@ -1,5 +1,5 @@
-import firebase = require("firebase");
-import { database } from "firebase";
+import firebase from "firebase";
+import  * as _ from "lodash";
 import { BehaviorSubject, of, Subscribable } from "rxjs";
 import { FirebaseChatConfigs } from "../FirebaseChatConfigs";
 import { Participant } from "./Participant";
@@ -35,7 +35,7 @@ export class Lobby {
 				this._dbr.child(this._configs.getRoomsLink + "/" + room.id).off();
 				this._dbr
 					.child(this._configs.getRoomsLink + "/" + room.id)
-					.on("value", (roomSnapshot: database.DataSnapshot) => {
+					.on("value", (roomSnapshot: firebase.database.DataSnapshot) => {
 						let room = this._parseRoomFromSnapshotValue(
 							roomSnapshot.key ?? "",
 							roomSnapshot.val()
@@ -133,40 +133,52 @@ export class Lobby {
 
 	//get rooms without listening to them
 	async getAllRooms(): Promise<Map<String, Room>> {
-		let snapshot: database.DataSnapshot = await this._dbr
+		
+		let snapshot: firebase.database.DataSnapshot = await this._dbr
 			.child(
-				this._configs.getUsersLink +
+				this._configs.getUsersLink() +
 					"/" +
-					this._configs.getMyParticipantID +
+					this._configs.getMyParticipantID() +
 					"/rooms"
 			)
 			.once("value");
-		let futures = new Array<Promise<database.DataSnapshot>>();
-		if (snapshot.val()?.values != null) {
-			snapshot.val().values.forEach((valueMap: Map<String, any>) => {
+		
+		let futures = new Array<Promise<firebase.database.DataSnapshot>>();
+		if (snapshot.val() != null) {
+			
+			for (const valueMap in snapshot.val()) {
+				
 				futures.push(
 					this._dbr
-						.child(this._configs.getRoomsLink + "/" + valueMap.get("id"))
+						.child(this._configs.getRoomsLink() + "/" + valueMap)
 						.once("value")
 				);
-			});
+			}
 		}
-		let dataSnaps: database.DataSnapshot[] = await Promise.all(futures);
+		let dataSnaps: firebase.database.DataSnapshot[] = await Promise.all(futures);
+		
 		dataSnaps = this._filterDataSnaps(snapshot, dataSnaps);
+		
 		this.rooms = this._parseRoomsFromSnapshots(dataSnaps);
+		console.log('rooms',this.rooms);
 		return this.rooms;
 	}
 
 	_filterDataSnaps(
-		lobby: database.DataSnapshot,
-		rooms: database.DataSnapshot[]
-	): database.DataSnapshot[] {
-		let lobbyRooms = lobby.val()?.values;
-		return rooms.filter((room) => {
-			let lobbyRoom: Map<string, any> = lobbyRooms.firstWhere(
-				(lobbyRoom: Map<String, any>) => lobbyRoom.get("id") == room.key
+		lobby: firebase.database.DataSnapshot,
+		rooms: firebase.database.DataSnapshot[]
+	): firebase.database.DataSnapshot[] {
+		let lobbyRooms = lobby.val();
+		
+		let result = _.filter(rooms,(room) => {
+			
+			let lobbyRoom = _.find(lobbyRooms,
+				(lobbyRoom) => {
+					return lobbyRoom.id == room.key
+				}
 			);
-			if (!lobbyRoom.has("data") || !lobbyRoom.get("data").has("deleted_to")) {
+			
+			if (!lobbyRoom.data  || !lobbyRoom.data.deleted_to) {
 				return true;
 			}
 			if (!room.val().has("last_message")) {
@@ -180,14 +192,15 @@ export class Lobby {
 					.compareTo(lobbyRoom.get("data").get("deleted_to")) > 0
 			);
 		});
+		return result;
 	}
 
 	//parse rooms from snapshot value
 	_parseRoomsFromSnapshots(
-		snapshots: database.DataSnapshot[]
+		snapshots: firebase.database.DataSnapshot[]
 	): Map<String, Room> {
 		let rooms = new Map<String, Room>();
-		snapshots.forEach((dataSnap: database.DataSnapshot) => {
+		snapshots.forEach((dataSnap: firebase.database.DataSnapshot) => {
 			let room = this._parseRoomFromSnapshotValue(
 				dataSnap.key ?? "",
 				dataSnap.val()
@@ -202,12 +215,15 @@ export class Lobby {
 	//parse room from snapshot value
 	_parseRoomFromSnapshotValue(
 		key: string,
-		valueMap: Map<string, any>
+		valueMap: any
 	): Room | null {
+		
 		if (valueMap == null) return null;
-		valueMap.set("messages", null);
-		valueMap.set("id", key);
-		return valueMap as unknown as Room;
+
+		valueMap["messages"]= null;
+		valueMap["id"]= key;
+
+		return new Room(valueMap.id,valueMap.name,valueMap.image,valueMap.participants,valueMap.messages,valueMap.meta_data,valueMap.last_message);
 	}
 
 	async initParticipant(): Promise<void> {

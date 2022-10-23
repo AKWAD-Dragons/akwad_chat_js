@@ -1,4 +1,4 @@
-import firebase = require("firebase");
+import firebase from "firebase";
 import { BehaviorSubject, Observable, Subject } from "rxjs";
 import { ChatAttachment } from "./models/ChatAttachment";
 
@@ -8,6 +8,7 @@ export class _SingleUploadTask {
   attachment?: ChatAttachment;
   private _path?: string;
   storageReference: firebase.storage.Reference = firebase.storage().ref();
+  
 
   total = () => this._total;
 
