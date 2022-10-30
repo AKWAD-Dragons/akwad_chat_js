@@ -2,7 +2,7 @@
   "compileOnSave": false,
   "compilerOptions": {
     "baseUrl": "./",
-    "outDir": "./lib",
+    "outDir": "./dist",
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitReturns": true,
@@ -15,9 +15,17 @@
     "importHelpers": true,
     "target": "es2017",
     "module": "ES2020",
-    "lib": ["ES2020", "dom", "dom.iterable"],
-    "types": ["node"],
-    "typeRoots": ["node_modules/@types"],
+    "lib": [
+      "ES2020",
+      "dom",
+      "dom.iterable"
+    ],
+    "types": [
+      "node"
+    ],
+    "typeRoots": [
+      "node_modules/@types"
+    ],
     "removeComments": true,
     "noEmit": false,
     "noEmitOnError": false,
@@ -38,7 +46,13 @@
     "strictPropertyInitialization": false,
     "skipLibCheck": true
   },
-  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/e2e", "**/test.ts"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.spec.ts",
+    "**/e2e",
+    "**/test.ts"
+  ],
   "angularCompilerOptions": {
     "enableIvy": true,
     "strictTemplates": true,
@@ -49,7 +63,9 @@
       "sourceMap": false,
       "module": "commonjs"
     },
-    "require": ["tsconfig-paths/register"],
+    "require": [
+      "tsconfig-paths/register"
+    ],
     "transpileOnly": true,
     "moduleTypes": {
       // compile `webpack.config.ts` as commonjs
