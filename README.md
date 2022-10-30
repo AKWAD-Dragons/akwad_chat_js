@@ -1,4 +1,4 @@
-# How to use
+# Akwad chat
 
 ## Initialize Firebase
 
