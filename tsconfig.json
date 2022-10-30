@@ -1,11 +1,60 @@
 {
+  "compileOnSave": false,
   "compilerOptions": {
-    "target": "es5",
-    "module": "commonjs",
-    "declaration": true,
+    "baseUrl": "./",
     "outDir": "./lib",
-    "strict": true
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "sourceMap": true,
+    "declaration": false,
+    "downlevelIteration": true,
+    "experimentalDecorators": true,
+    "moduleResolution": "node",
+    "importHelpers": true,
+    "target": "es2017",
+    "module": "ES2020",
+    "lib": ["ES2020", "dom", "dom.iterable"],
+    "types": ["node"],
+    "typeRoots": ["node_modules/@types"],
+    "removeComments": true,
+    "noEmit": false,
+    "noEmitOnError": false,
+    "noImplicitAny": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "preserveSymlinks": true,
+    "sourceRoot": "",
+    "mapRoot": "",
+    "emitDecoratorMetadata": true,
+    "locale": "en",
+    "watch": false,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    // required for ts-jest
+    "allowJs": true,
+    "strictPropertyInitialization": false,
+    "skipLibCheck": true
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "**/__tests__/*"]
+  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/e2e", "**/test.ts"],
+  "angularCompilerOptions": {
+    "enableIvy": true,
+    "strictTemplates": true,
+    "strictAttributeTypes": false
+  },
+  "ts-node": {
+    "compilerOptions": {
+      "sourceMap": false,
+      "module": "commonjs"
+    },
+    "require": ["tsconfig-paths/register"],
+    "transpileOnly": true,
+    "moduleTypes": {
+      // compile `webpack.config.ts` as commonjs
+      "**/webpack.config.ts": "cjs",
+      "**/webpack.config.*.ts": "cjs"
+    }
+  }
 }
