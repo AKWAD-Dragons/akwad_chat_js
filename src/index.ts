@@ -1,6 +1,10 @@
-export { ChatProvider, AttachmentTypes } from "./chat_provider";
-export { FirebaseChatConfigs } from "./FirebaseChatConfigs";
-export {SendMessageTask, TaskUpdateEvent, TaskCompletedEvent} from "./SendTask";
+export { ChatProvider, AttachmentTypes } from "./chat-provider";
+export { FirebaseChatConfigs } from "./firebase.config";
+export {
+  SendMessageTask,
+  TaskUpdateEvent,
+  TaskCompletedEvent,
+} from "./SendTask";
 export { ChatAttachment } from "./models/ChatAttachment";
 export { Lobby } from "./models/Lobby";
 export { Message } from "./models/Message";
