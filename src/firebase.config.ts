@@ -1,6 +1,6 @@
-interface FirebaseChatOptions {
+export interface FirebaseChatOptions {
   // link to Rooms node in realtime database
-  roomLink?: string;
+  roomsLink?: string;
   // link to Messages node in realtime database
   messagesLink?: string;
   // link to Users node in realtime database
@@ -8,6 +8,7 @@ interface FirebaseChatOptions {
   // a custom token that expires after one hour
   // this token could be fetched through the cloud function createUser and refreshToken
   myParticipantToken?: string;
+  myParticipantID?: string | number;
 }
 
 //Firebase Configs for ChatProvider
@@ -16,7 +17,7 @@ export class FirebaseChatConfigs {
   private _roomsLink?: string;
   private _messagesLink?: string;
   private _usersLink?: string;
-  private _myParticipantID?: string;
+  private _myParticipantID?: string | number;
   private _myParticipantToken?: string;
   private _isInit: boolean = false;
 
@@ -32,7 +33,7 @@ export class FirebaseChatConfigs {
   }
 
   init(options: FirebaseChatOptions = {}): void {
-    let opts = {
+    let opts: FirebaseChatOptions = {
       roomsLink: "Rooms",
       messagesLink: "Messages",
       usersLink: "Users",
@@ -42,6 +43,7 @@ export class FirebaseChatConfigs {
     this._roomsLink = opts.roomsLink ?? this._roomsLink;
     this._messagesLink = opts.messagesLink ?? this._messagesLink;
     this._usersLink = opts.usersLink ?? this._usersLink;
+    this._myParticipantID = opts.myParticipantID ?? this._myParticipantID;
     this._myParticipantToken =
       opts.myParticipantToken ?? this._myParticipantToken;
   }
@@ -93,10 +95,10 @@ export class FirebaseChatConfigs {
   }
 
   get myParticipantToken(): string {
-    return this.handleValue("myParticipantID");
+    return this.handleValue("myParticipantToken");
   }
 
   set myParticipantToken(value: string) {
-    this.handleValue("myParticipantID", value);
+    this.handleValue("myParticipantToken", value);
   }
 }
