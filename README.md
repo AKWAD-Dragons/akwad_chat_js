@@ -1,5 +1,10 @@
 # Akwad chat
 
+<!-- todo:
+- no need to initialize the firebase app or call `FirebaseChatConfigs.init()` manually
+- if a firebase app already initialized, just pass it to ChatProvider
+ -->
+
 ## Initialize Firebase
 
 initialize firebase first as in firebase documentation.
