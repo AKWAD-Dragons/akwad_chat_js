@@ -1,7 +1,14 @@
 //TODO::Copy variables, functions, classes privacy(private or public) from the Dart SDK
-import { FirebaseChatConfigs } from "./firebase.config";
+import { FirebaseChatConfigs, FirebaseChatOptions } from "./firebase.config";
 import { Lobby } from "./models/Lobby";
-import firebase = require("firebase");
+import { FirebaseApp, FirebaseOptions, initializeApp } from "firebase/app";
+import {
+  Auth,
+  getAuth,
+  signInWithCustomToken,
+  signOut,
+  UserCredential,
+} from "firebase/auth";
 
 /*
   ***Starting Point***
@@ -16,63 +23,61 @@ import firebase = require("firebase");
 export class ChatProvider {
   private _lobby: Lobby;
   private _isInit = false;
+  private firebaseChatConfigs: FirebaseChatConfigs =
+    FirebaseChatConfigs.getInstance();
+  private auth: Auth;
 
-  constructor(FirebaseConfigs: Object) {
-    firebase.initializeApp(FirebaseConfigs);
-    if (!FirebaseChatConfigs.getInstance().isInit()) {
-      throw "call FirebaseChatConfigs.instance.init() first";
+  constructor(
+    firebaseConfigs: FirebaseOptions,
+    chatConfig: FirebaseChatOptions,
+    private firebaseApp?: FirebaseApp
+  ) {
+    if (!firebaseConfigs || !chatConfig) {
+      throw new Error(`provide both firebaseConfigs and chatConfig`);
     }
-    this._lobby = new Lobby();
+    this.firebaseApp = this.firebaseApp || initializeApp(firebaseConfigs);
+    this.firebaseChatConfigs.init(chatConfig);
+
+    // this._lobby = new Lobby();
   }
 
-  /*
-   *this function must be called to initialize the Chat User and authenticate him
-
-   *Params:
-      onTokenExpired()=>String: a callback function that gets called
-        if the token passed is expired
-        could be used to refresh token passed to FirebaseChatConfigs.init
+  /**
+   * initialize the chat and authenticate the user
+   * @param onTokenExpired a function to refresh the token when it expires
+   * @returns
    */
-  async init(onTokenExpired: () => Promise<string>): Promise<void> {
-    let user = firebase.auth().currentUser;
+  // todo: return lobby
+  async init(
+    onTokenExpired: () => string | Promise<string>
+  ): Promise<UserCredential | void> {
+    this.auth = getAuth();
+    let user = this.auth.currentUser;
+
     if (user) {
-      FirebaseChatConfigs.getInstance().setMyParticipantID(user.uid);
+      this.firebaseChatConfigs.myParticipantID = user.uid;
       this._isInit = true;
+
+      // todo: return UserCredential or User
       return;
     }
-    let creds = await firebase
-      .auth()
-      .signInWithCustomToken(
-        FirebaseChatConfigs.getInstance().getMyParticipantToken() || ""
-      )
-      .catch(async (ex) => {
-        console.log(
-          "Token is invalid or expired\nretrying with onTokenExpired"
-        );
-        FirebaseChatConfigs.getInstance().init({
-          myParticipantToken: await onTokenExpired(),
-        });
-        await firebase
-          .auth()
-          .signInWithCustomToken(
-            FirebaseChatConfigs.getInstance().getMyParticipantToken() ?? ""
-          )
-          .then((value) => {
-            FirebaseChatConfigs.getInstance().setMyParticipantID(
-              value.user?.uid ?? ""
-            );
-          })
-          .catch((e) => {
-            throw e;
-          });
-        return;
-      });
 
-    this._isInit = true;
+    return signInWithCustomToken(
+      this.auth,
+      this.firebaseChatConfigs.myParticipantToken
+    ).catch(() => {
+      let token = onTokenExpired();
+      return (token instanceof Promise ? token : Promise.resolve(token)).then(
+        (token) => {
+          this.firebaseChatConfigs.init({ myParticipantToken: token });
+          this._isInit = true;
+          return signInWithCustomToken(this.auth, token ?? "");
+        }
+      );
+    });
   }
 
-  deAuth() {
-    firebase.auth().signOut();
+  logout() {
+    signOut(this.auth);
   }
 
   //Returns lobby if it's safe to use lobby

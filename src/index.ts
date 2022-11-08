@@ -1,3 +1,6 @@
+import { ChatProvider } from "./chat-provider";
+
+export default ChatProvider;
 export { ChatProvider, AttachmentTypes } from "./chat-provider";
 export { FirebaseChatConfigs } from "./firebase.config";
 export {
