@@ -23,6 +23,7 @@ import {
 export class ChatProvider {
   private _lobby: Lobby;
   private _isInit = false;
+  // todo: rename to dbConfig
   private firebaseChatConfigs: FirebaseChatConfigs =
     FirebaseChatConfigs.getInstance();
   private auth: Auth;
@@ -32,13 +33,18 @@ export class ChatProvider {
     chatConfig: FirebaseChatOptions,
     private firebaseApp?: FirebaseApp
   ) {
-    if (!firebaseConfigs || !chatConfig) {
-      throw new Error(`provide both firebaseConfigs and chatConfig`);
+    if (!firebaseConfigs && !firebaseApp) {
+      throw new Error(`provide either firebaseConfigs or firebaseApp`);
     }
+
+    if (!chatConfig) {
+      throw new Error("provide chatConfig");
+    }
+
     this.firebaseApp = this.firebaseApp || initializeApp(firebaseConfigs);
     this.firebaseChatConfigs.init(chatConfig);
 
-    // this._lobby = new Lobby();
+    // this._lobby = new Lobby(chatConfig, firebaseApp);
   }
 
   /**
@@ -46,6 +52,7 @@ export class ChatProvider {
    * @param onTokenExpired a function to refresh the token when it expires
    * @returns
    */
+  // todo: rename to auth()
   // todo: return lobby
   async init(
     onTokenExpired: () => string | Promise<string>

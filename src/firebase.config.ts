@@ -1,3 +1,5 @@
+// todo: merge this class into ChatProvider
+
 export interface FirebaseChatOptions {
   // link to Rooms node in realtime database
   roomsLink?: string;

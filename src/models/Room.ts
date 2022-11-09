@@ -1,7 +1,6 @@
 import { Participant } from "./Participant";
 import { Message } from "./Message";
-import firebase = require("firebase");
-import { database } from "firebase";
+import { DatabaseReference, ref, getDatabase } from "firebase/database";
 import { FirebaseChatConfigs } from "../firebase.config";
 import { SendMessageTask, _SingleUploadTask } from "../SendTask";
 import { ChatAttachment } from "./ChatAttachment";
@@ -17,7 +16,8 @@ export class Room {
   last_message?: Message;
   last_message_index?: number;
 
-  _dbr: firebase.database.Reference = firebase.database().ref();
+  // todo: add path `ref(db, path)`
+  _dbr: DatabaseReference = ref(getDatabase());
 
   _configs: FirebaseChatConfigs = FirebaseChatConfigs.getInstance();
 

@@ -13,9 +13,8 @@ export class _SingleUploadTask {
 
   progress = () => this._progress;
 
-  private _controller: BehaviorSubject<
-    _TaskEvent | undefined
-  > = new BehaviorSubject<_TaskEvent | undefined>(undefined);
+  private _controller: BehaviorSubject<_TaskEvent | undefined> =
+    new BehaviorSubject<_TaskEvent | undefined>(undefined);
 
   stream: Observable<_TaskEvent | undefined>;
 
@@ -49,6 +48,7 @@ export class _SingleUploadTask {
       },
       (error: Error) => {
         console.log(error.message);
+        return error;
       },
       async () => {
         if (this.attachment == undefined || this._path == undefined) return;
@@ -68,9 +68,8 @@ export class _SingleUploadTask {
 export class SendMessageTask {
   private _taskMap: Map<String, _SingleUploadTask>;
   private _attachments: ChatAttachment[] = [];
-  private _onCompleteCallBacks: Array<
-    (attachments: ChatAttachment[]) => void
-  > = [];
+  private _onCompleteCallBacks: Array<(attachments: ChatAttachment[]) => void> =
+    [];
   private _onProgressCallBacks: Array<(task: SendMessageTask) => void> = [];
 
   private _count: number = 0;

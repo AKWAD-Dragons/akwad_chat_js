@@ -1,10 +1,19 @@
-import firebase = require("firebase");
-import { database } from "firebase";
+import { FirebaseApp, initializeApp } from "firebase/app";
+import {
+  child,
+  DatabaseReference,
+  DataSnapshot,
+  get,
+  getDatabase,
+  onValue,
+  ref,
+} from "firebase/database";
 import { BehaviorSubject, of, Subscribable } from "rxjs";
 import { FirebaseChatConfigs } from "../firebase.config";
 import { Participant } from "./Participant";
 import { Room } from "./Room";
 import { Message } from "./Message";
+import { lastValueFrom } from "rxjs";
 
 //Lobby contains User Rooms(without messages essentially only contains last_message)
 //and listen to it's updates
@@ -12,7 +21,7 @@ import { Message } from "./Message";
 
 export class Lobby {
   private _configs: FirebaseChatConfigs;
-  private _dbr: firebase.database.Reference;
+  private _dbRef: DatabaseReference;
   private _myParticipant?: Participant;
   private rooms = new Map<String, Room>();
   private _userRoomConfigs = new Map<String, any>();
@@ -20,11 +29,53 @@ export class Lobby {
   private _roomsSubject: BehaviorSubject<Room | undefined> =
     new BehaviorSubject<Room | undefined>(undefined);
 
-  constructor() {
-    this._configs = FirebaseChatConfigs.getInstance();
-    this._dbr = firebase.database().ref();
+  constructor(
+    private chatConfigs: FirebaseChatConfigs,
+    private firebaseApp?: FirebaseApp
+  ) {
+    this._dbRef = ref(
+      getDatabase(this.firebaseApp),
+      `${this.chatConfigs.usersLink}/${this.chatConfigs.myParticipantID}`
+    );
+
     // can't implement offline persistence as in mobile
   }
+
+  /**
+   * get rooms data from the database once.
+   * to get an interactive reference use onValue()
+   * @returns
+   */
+  // todo: rename to getRooms()
+  getLobbyRooms(): Promise<Room[] | undefined> {
+    return get(child(this._dbRef, this.chatConfigs.roomsLink)).then(
+      (snapshot) => {
+        console.log({ snapshot, data: snapshot.val() });
+        return snapshot.val();
+        // return snapshot.val()?.map((el: any) => {
+        //   let [key, value] = el;
+        //   let room = this._parseRoomFromSnapshotValue(key, value);
+        //   if (room?.userRoomData) {
+        //     this._userRoomConfigs.set(key, room.userRoomData);
+        //   }
+        //   return room;
+        // });
+      }
+    );
+  }
+
+  //parse room from snapshot value
+  _parseRoomFromSnapshotValue(key: string, value: Map<string, any>): Room {
+    if (value) {
+      value.set("messages", null);
+      value.set("id", key);
+    }
+
+    // todo: return Map
+    return value as unknown as Room;
+  }
+
+  /*
 
   // listen to lobby rooms updates(last_message, new participants, etc)
   getLobbyListener(): Subscribable<Room | undefined> {
@@ -32,140 +83,83 @@ export class Lobby {
     this.getLobbyRooms().then((lobbyRooms: Room[]) => {
       this._setLobbyRoomsListeners();
       lobbyRooms.forEach((room: Room) => {
-        this._dbr.child(this._configs.getRoomsLink + "/" + room.id).off();
-        this._dbr
-          .child(this._configs.getRoomsLink + "/" + room.id)
-          .on("value", (roomSnapshot: database.DataSnapshot) => {
+        onValue(
+          child(this._dbRef, `${this.chatConfigs.roomsLink}/${room.id}`),
+          (snapshot: DataSnapshot) => {
             let room = this._parseRoomFromSnapshotValue(
-              roomSnapshot.key ?? "",
-              roomSnapshot.val()
+              snapshot.key ?? "",
+              snapshot.val()
             );
-            let isDeleted: boolean = false;
+
             if (
-              (room?.last_message ?? null) != null &&
-              this._userRoomConfigs.has(room?.id ?? "") &&
-              this._userRoomConfigs.get(room?.id ?? "").has("deleted_to")
+              room?.last_message?.id &&
+              this._userRoomConfigs.get(room?.id ?? "")?.has("deleted_to") &&
+              room?.last_message?.id >
+                this._userRoomConfigs.get(room?.id ?? "").get("deleted_to")
             ) {
-              isDeleted =
-                (room?.last_message?.id ?? "") >
-                this._userRoomConfigs.get(room?.id ?? "").get("deleted_to");
-            }
-            if (isDeleted) {
+              // message is deleted
               return;
             }
-            if (room != null && room.id != null) {
+
+            if (room.id) {
               this.rooms.set(room.id, room);
               this._roomsSubject.next(room);
             }
-          });
+          }
+        );
       });
     });
     return this._roomsSubject;
   }
 
-  //get unread rooms count
-  async getUnreadRoomsCount(): Promise<number> {
-    let unreadRoomsCount = 0;
-    if (this.rooms == null) {
-      this.rooms = await this.getAllRooms();
-    }
-
-    this.rooms.forEach((room: Room, key: String) => {
-      if (room.getUnreadMessagesCount() > 0) {
-        unreadRoomsCount++;
-      }
-    });
-    return unreadRoomsCount;
-  }
-
-  //get lobby rooms
-  async getLobbyRooms(): Promise<Room[]> {
-    let snapshot = await this._dbr
-      .child(
-        this._configs.getUsersLink +
-          "/" +
-          this._configs.getMyParticipantID +
-          "/rooms"
-      )
-      .once("value");
-
-    let rooms = new Array<Room>();
-    if (snapshot.val() != null) {
-      snapshot.val().forEach((key: any, value: any) => {
-        let room = this._parseRoomFromSnapshotValue(key, value);
-        if (room != null) {
-          rooms.push(room);
-          if (room.userRoomData != null) {
-            this._userRoomConfigs.set(key, room.userRoomData);
+  getUnreadRoomsCount(): Promise<number> {
+    return (this.rooms ? Promise.resolve(this.rooms) : this.getAllRooms()).then(
+      (rooms) => {
+        this.rooms = rooms;
+        return Array.from(rooms).reduce((total, value) => {
+          if (value[1].getUnreadMessagesCount() > 0) {
+            total++;
           }
-        }
-      });
-    }
-    return rooms;
+          return total;
+        }, 0);
+      }
+    );
   }
 
   async _setLobbyRoomsListeners() {
-    this._dbr
-      .child(
-        this._configs.getUsersLink +
-          "/" +
-          this._configs.getMyParticipantID +
-          "/rooms"
-      )
-      .off();
-    this._dbr
-      .child(
-        this._configs.getUsersLink +
-          "/" +
-          this._configs.getMyParticipantID +
-          "/rooms"
-      )
-      .on("value", (event) => {
-        let room = this._parseRoomFromSnapshotValue(
-          event.key ?? "",
-          event.val()
-        );
-        if (room != null) {
-          this._userRoomConfigs.set(room.id ?? "", room.userRoomData);
-        }
-      });
+    onValue(this._dbRef, (snapshot) => {
+      let room = this._parseRoomFromSnapshotValue(
+        snapshot.key ?? "",
+        snapshot.val()
+      );
+      if (room != null) {
+        this._userRoomConfigs.set(room.id ?? "", room.userRoomData);
+      }
+    });
   }
 
   //get rooms without listening to them
   async getAllRooms(): Promise<Map<String, Room>> {
-    let snapshot: database.DataSnapshot = await this._dbr
-      .child(
-        this._configs.getUsersLink +
-          "/" +
-          this._configs.getMyParticipantID +
-          "/rooms"
+    return get(child(this._dbRef, this.chatConfigs.roomsLink)).then((snapshot) =>
+      Promise.all(
+        snapshot
+          .val()
+          .values?.map((el: Map<String, any>) =>
+            child(this._dbRef, `${this.chatConfigs.roomsLink}/${el.get("id")}`)
+          )
       )
-      .once("value");
-    let futures = new Array<Promise<database.DataSnapshot>>();
-    if (snapshot.val()?.values != null) {
-      snapshot.val().values.forEach((valueMap: Map<String, any>) => {
-        futures.push(
-          this._dbr
-            .child(this._configs.getRoomsLink + "/" + valueMap.get("id"))
-            .once("value")
-        );
-      });
-    }
-    let dataSnaps: database.DataSnapshot[] = await Promise.all(futures);
-    dataSnaps = this._filterDataSnaps(snapshot, dataSnaps);
-    this.rooms = this._parseRoomsFromSnapshots(dataSnaps);
-    return this.rooms;
+        .then((dataSnaps) => this._filterDataSnaps(snapshot, dataSnaps))
+        .then((dataSnaps) => this._parseRoomsFromSnapshots(dataSnaps))
+    );
   }
 
-  _filterDataSnaps(
-    lobby: database.DataSnapshot,
-    rooms: database.DataSnapshot[]
-  ): database.DataSnapshot[] {
+  _filterDataSnaps(lobby: DataSnapshot, rooms: DataSnapshot[]): DataSnapshot[] {
     let lobbyRooms = lobby.val()?.values;
     return rooms.filter((room) => {
       let lobbyRoom: Map<string, any> = lobbyRooms.firstWhere(
         (lobbyRoom: Map<String, any>) => lobbyRoom.get("id") == room.key
       );
+
       if (!lobbyRoom.has("data") || !lobbyRoom.get("data").has("deleted_to")) {
         return true;
       }
@@ -199,30 +193,23 @@ export class Lobby {
     return rooms;
   }
 
-  //parse room from snapshot value
-  _parseRoomFromSnapshotValue(
-    key: string,
-    valueMap: Map<string, any>
-  ): Room | null {
-    if (valueMap == null) return null;
-    valueMap.set("messages", null);
-    valueMap.set("id", key);
-    return valueMap as unknown as Room;
-  }
+ 
 
   async initParticipant(): Promise<void> {
+    onValue(this._databaseParticipantPath, (snapshot) => {});
     let value = (
-      await this._dbr
+      await this._dbRef
         .child(
-          this._configs.getUsersLink + "/" + this._configs.getMyParticipantID
+          this.chatConfigs.getUsersLink + "/" + this.chatConfigs.getMyParticipantID
         )
         .once("value")
     ).val();
     this._myParticipant = value;
     if (this._myParticipant == null) {
-      throw "Participant of ID ${this._configs.getMyParticipantID} doesn't exist or the configs are not right";
+      throw "Participant of ID ${this.chatConfigs.getMyParticipantID} doesn't exist or the configs are not right";
     }
 
-    this._myParticipant.id = this._configs.getMyParticipantID();
+    this._myParticipant.id = this.chatConfigs.getMyParticipantID();
   }
+  */
 }
